@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "SimpleWebServer.h"
+#include "tone.h"
+
+static constexpr uint8_t BUZZER_PIN = 13;
 
 IPAddress ip(192, 168, 100, 125);        // for fixed IP Address
 IPAddress gateway(192, 168, 100, 1);     //
@@ -34,6 +37,9 @@ void setup(){
   //server = new SimpleWebServer("target", "12345678", WiFi.localIP(), IPAddress(255,255,255,0), 80);
   Serial.println("set_server end");
   Wire.begin();
+  ledcSetup(1, 12000, 8);
+  ledcAttachPin(BUZZER_PIN, 1);
+  playmusic();
   Serial.println("setup end");
 }
 
@@ -51,6 +57,7 @@ void handle_root(){
     Serial.println(b);
     if(b == 1){
       server.send_html(200, "target=1");
+      playmusic();
       return;
     }
   }
@@ -61,4 +68,12 @@ void handle_root(){
 void set_server(){
   server.add_handler("/", handle_root);
   server.begin();
+}
+
+void playmusic(){
+  ledcWriteTone(1,C4);
+  delay(BEAT);
+  ledcWriteTone(1,D4);
+  delay(BEAT);
+  ledcWriteTone(1,0);
 }
