@@ -72,6 +72,12 @@ public:
     s = s + String(cp);
     send_response(s.c_str());
   }
+
+  void send_html(int status, String cp){
+    String s = "HTTP/1.1 " + String(status) + " OK\r\nContent-type:text/html\r\n\r\n";
+    s = s + cp;
+    send_response(s.c_str());
+  }
  
   void send_status(int status, const char* cp = NULL)
   {
