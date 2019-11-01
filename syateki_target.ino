@@ -3,16 +3,20 @@
 #include "SimpleWebServer.h"
 #include "tone.h"
 #include "debug.h"
+#include "irReceiver.hpp"
+#include "slideTarget.hpp"
 
 static constexpr uint8_t BUZZER_PIN = 13;
 static constexpr uint8_t EYE_LED_PIN = 25;
 static constexpr int ADDRESS_IR_RECV_MOD = 8;
 
-IPAddress ip(192, 168, 100, 125);        // for fixed IP Address
+IPAddress ip(192, 168, 100, 200);        // for fixed IP Address
 IPAddress gateway(192, 168, 100, 1);     //
 IPAddress subnet(255, 255, 255, 0);      //
 SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
 //SimpleWebServer *server;
+IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
+SlideTarget _target(EYE_LED_PIN);
 
 void setup(){
   BeginDebugPrint();
@@ -49,13 +53,14 @@ void setup(){
 
 void loop(){
   server.handle_request();
-  guide_recv_status(EYE_LED_PIN);
+  guide_recv_status(_irReceiver, _target);
   delay(100);
 }
 
 void handle_root(){
   DebugPrint("-- GET /");
-  byte target_num = get_target_num();
+  byte target_num = _irReceiver.read();
+  DebugPrint("target_num = %d", target_num);
   String return_html = "target=" + String(target_num);
   server.send_html(200, return_html);
   if(target_num == 1){
@@ -93,20 +98,10 @@ void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
   }
 }
 
-byte get_target_num(){
-  Wire.requestFrom(ADDRESS_IR_RECV_MOD, 1);
-  byte target_num = 0;
-  while (Wire.available()) {
-    target_num = Wire.read();
-    DebugPrint("# Wire.read = %d", target_num);
-  }
-  return target_num;
-}
-
-void guide_recv_status(uint8_t led_pin){
-  if(get_target_num() != 0){
-    digitalWrite(led_pin, HIGH);
+void guide_recv_status(const IrReceiver& irReceiver, const SlideTarget& target){
+  if(irReceiver.read() != 0){
+    target.flash_eye(true);
   }else{
-    digitalWrite(led_pin, LOW);
+    target.flash_eye(false);
   }
 }
