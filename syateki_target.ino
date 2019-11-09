@@ -7,7 +7,8 @@
 #include "slideTarget.hpp"
 
 static constexpr uint8_t BUZZER_PIN = 13;
-static constexpr uint8_t EYE_LED_PIN = 25;
+static constexpr uint8_t EYE_LED_PIN = 16;
+static constexpr uint8_t HEAD_LED_PIN = 17;
 static constexpr int ADDRESS_IR_RECV_MOD = 8;
 
 IPAddress ip(192, 168, 100, 200);        // for fixed IP Address
@@ -16,12 +17,11 @@ IPAddress subnet(255, 255, 255, 0);      //
 SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
 //SimpleWebServer *server;
 IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
-SlideTarget _target(EYE_LED_PIN);
+SlideTarget _target(EYE_LED_PIN, HEAD_LED_PIN);
 
 void setup(){
   BeginDebugPrint();
   
-  initialize_pin_mode();
   WiFi.mode(WIFI_AP_STA);
   set_server();
   
@@ -83,11 +83,6 @@ void playmusic(){
   ledcWriteTone(1,0);
 }
 
-void initialize_pin_mode(){
-  digitalWrite(EYE_LED_PIN, LOW);
-  pinMode(EYE_LED_PIN, OUTPUT);
-}
-
 void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
   for(int i = 0; i < blink_count; i++){
     digitalWrite(pin, HIGH);
@@ -99,9 +94,26 @@ void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
 }
 
 void guide_recv_status(const IrReceiver& irReceiver, const SlideTarget& target){
-  if(irReceiver.read() != 0){
+  byte target_num = irReceiver.read();
+  if(target_num > 0){
     target.flash_eye(true);
+    target.set_head_color(_head_color(target_num));
   }else{
     target.flash_eye(false);
+    target.set_head_color(HeadColor::clear);
   }
+}
+
+HeadColor _head_color(byte target_num){
+  std::map<byte, HeadColor> dict{
+    {1, HeadColor::red},
+    {2, HeadColor::green},
+    {3, HeadColor::blue}
+  };
+  try{
+    return dict.at(target_num);
+  }catch(std::out_of_range&){
+    DebugPrint("<exception> std::out_of_range: input = %d", target_num);
+  }
+  return HeadColor::clear;
 }
