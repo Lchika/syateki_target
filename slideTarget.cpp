@@ -1,6 +1,8 @@
 #include <map>
 #include "slideTarget.hpp"
 
+RgbColor black(0);
+
 void SlideTarget::flash_eye(bool is_on) const {
   if(is_on){
     _eye->on();
@@ -15,16 +17,17 @@ void SlideTarget::blink_eye(uint32_t time, uint32_t count) const {
 
 void SlideTarget::set_head_color(HeadColor color) const {
   if(color == clear){
-    _head->clear();
+    _head->ClearTo(black);
   }else{
-    std::array<int, 3> color_a = color_array(color);
-    _head->setPixelColor(0, _head->Color(color_a[0], color_a[1], color_a[2]));
+    std::array<uint8_t, 3> color_a = color_array(color);
+    RgbColor rgb_color(color_a[0], color_a[1], color_a[2]);
+    _head->SetPixelColor(0, rgb_color);
   }
-  _head->show();
+  _head->Show();
 }
 
-std::array<int, 3> SlideTarget::color_array(HeadColor color) const {
-  std::map<HeadColor, std::array<int, 3>> dict{
+std::array<uint8_t, 3> SlideTarget::color_array(HeadColor color) const {
+  std::map<HeadColor, std::array<uint8_t, 3>> dict{
     {clear, {0, 0, 0}},
     {red, {150, 0, 0}},
     {green, {0, 150, 0}},

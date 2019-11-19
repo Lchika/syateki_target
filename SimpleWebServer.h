@@ -35,7 +35,13 @@ public:
     this->password = password;
     client_connected = NULL;
   }
- 
+  
+  SimpleWebServer(const IPAddress ap_addr, const IPAddress ap_netmask, int port = 80) : WiFiServer(port) {
+    this->ap_addr = ap_addr;
+    this->ap_netmask = ap_netmask;
+    client_connected = NULL;
+  }
+
   void begin() {
     /*
     WiFi.softAP(ssid.c_str(), password.c_str());

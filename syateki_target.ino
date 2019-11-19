@@ -1,27 +1,40 @@
+#include <array>
+#include <memory>
+#include <utility>
+#include <vector>
 #include <Arduino.h>
 #include <Wire.h>
 #include "SimpleWebServer.h"
-#include "tone.h"
 #include "debug.h"
 #include "irReceiver.hpp"
 #include "slideTarget.hpp"
+#include "rotaryDipSwitch.hpp"
 
-static constexpr uint8_t BUZZER_PIN = 13;
-static constexpr uint8_t EYE_LED_PIN = 16;
-static constexpr uint8_t HEAD_LED_PIN = 17;
-static constexpr int ADDRESS_IR_RECV_MOD = 8;
+static constexpr uint8_t EYE_LED_PIN_1CH = 27;
+static constexpr uint8_t HEAD_LED_PIN_1CH = 26;
+static constexpr int ADDRESS_IR_RECV_MOD_1CH = 8;
+static constexpr uint8_t EYE_LED_PIN_2CH = 25;
+static constexpr uint8_t HEAD_LED_PIN_2CH = 23;
+static constexpr int ADDRESS_IR_RECV_MOD_2CH = 9;
 
 IPAddress ip(192, 168, 100, 200);        // for fixed IP Address
 IPAddress gateway(192, 168, 100, 1);     //
 IPAddress subnet(255, 255, 255, 0);      //
-SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
-//SimpleWebServer *server;
-IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
-SlideTarget _target(EYE_LED_PIN, HEAD_LED_PIN);
+//SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
+std::unique_ptr<SimpleWebServer> server;
+std::vector<std::pair<IrReceiver, SlideTarget>> targets;
+//IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
+//SlideTarget _target(EYE_LED_PIN, HEAD_LED_PIN);
 
 void setup(){
   BeginDebugPrint();
-  
+
+  init_target_val();
+
+  RotaryDipSwitch rotaryDipSwitch({34, 36, 39, 35});
+  const IPAddress ip(192, 168, 100, 200 + rotaryDipSwitch.read());
+  server.reset(new SimpleWebServer(ip, IPAddress(255, 255, 255, 0), 80));
+
   WiFi.mode(WIFI_AP_STA);
   set_server();
   
@@ -45,42 +58,32 @@ void setup(){
   //server = new SimpleWebServer("target", "12345678", WiFi.localIP(), IPAddress(255,255,255,0), 80);
   DebugPrint("set_server end");
   Wire.begin();
-  ledcSetup(1, 12000, 8);
-  ledcAttachPin(BUZZER_PIN, 1);
-  playmusic();
   DebugPrint("setup end");
 }
 
 void loop(){
-  server.handle_request();
-  guide_recv_status(_irReceiver, _target);
+  server->handle_request();
+  for(const auto& t : targets){
+    guide_recv_status(t.first, t.second);
+  }
   delay(100);
 }
 
 void handle_root(){
   DebugPrint("-- GET /");
-  byte target_num = _irReceiver.read();
+  byte target_num = targets[0].first.read();
   DebugPrint("target_num = %d", target_num);
   String return_html = "target=" + String(target_num);
-  server.send_html(200, return_html);
+  server->send_html(200, return_html);
   if(target_num == 1){
-    blink_led(EYE_LED_PIN, 100, 3);
-    playmusic();
+    blink_led(EYE_LED_PIN_1CH, 100, 3);
   }
   return;
 }
 
 void set_server(){
-  server.add_handler("/", handle_root);
-  server.begin();
-}
-
-void playmusic(){
-  ledcWriteTone(1,C4);
-  delay(BEAT);
-  ledcWriteTone(1,D4);
-  delay(BEAT);
-  ledcWriteTone(1,0);
+  server->add_handler("/", handle_root);
+  server->begin();
 }
 
 void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
@@ -95,6 +98,7 @@ void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
 
 void guide_recv_status(const IrReceiver& irReceiver, const SlideTarget& target){
   byte target_num = irReceiver.read();
+  //DebugPrint("target_num = %d", target_num);
   if(target_num > 0){
     target.flash_eye(true);
     target.set_head_color(_head_color(target_num));
@@ -116,4 +120,13 @@ HeadColor _head_color(byte target_num){
     DebugPrint("<exception> std::out_of_range: input = %d", target_num);
   }
   return HeadColor::clear;
+}
+
+void init_target_val(){
+  std::pair<IrReceiver, SlideTarget> t1
+    = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_1CH), SlideTarget(EYE_LED_PIN_1CH, HEAD_LED_PIN_1CH));
+  std::pair<IrReceiver, SlideTarget> t2
+    = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_2CH), SlideTarget(EYE_LED_PIN_2CH, HEAD_LED_PIN_2CH));
+  targets.push_back(std::move(t1));
+  targets.push_back(std::move(t2));
 }
