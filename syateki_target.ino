@@ -17,12 +17,18 @@ static constexpr uint8_t EYE_LED_PIN_2CH = 25;
 static constexpr uint8_t HEAD_LED_PIN_2CH = 23;
 static constexpr int ADDRESS_IR_RECV_MOD_2CH = 9;
 
+struct Target{
+  std::unique_ptr<IrReceiver> irReceiver;
+  std::unique_ptr<SlideTarget> slideTarget;
+};
+
 IPAddress ip(192, 168, 100, 200);        // for fixed IP Address
 IPAddress gateway(192, 168, 100, 1);     //
 IPAddress subnet(255, 255, 255, 0);      //
 //SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
 std::unique_ptr<SimpleWebServer> server;
-std::vector<std::pair<IrReceiver, SlideTarget>> targets;
+//std::vector<Target> targets;
+Target targets[2];
 //IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
 //SlideTarget _target(EYE_LED_PIN, HEAD_LED_PIN);
 
@@ -63,15 +69,14 @@ void setup(){
 
 void loop(){
   server->handle_request();
-  for(const auto& t : targets){
-    guide_recv_status(t.first, t.second);
-  }
+  guide_recv_status();
   delay(100);
 }
 
 void handle_root(){
   DebugPrint("-- GET /");
-  byte target_num = targets[0].first.read();
+  byte target_num = targets[0].irReceiver->read();
+  //byte target_num = 0;
   DebugPrint("target_num = %d", target_num);
   String return_html = "target=" + String(target_num);
   server->send_html(200, return_html);
@@ -96,15 +101,17 @@ void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
   }
 }
 
-void guide_recv_status(const IrReceiver& irReceiver, const SlideTarget& target){
-  byte target_num = irReceiver.read();
-  //DebugPrint("target_num = %d", target_num);
-  if(target_num > 0){
-    target.flash_eye(true);
-    target.set_head_color(_head_color(target_num));
-  }else{
-    target.flash_eye(false);
-    target.set_head_color(HeadColor::clear);
+void guide_recv_status(){
+  for(const auto& t : targets){
+    byte target_num = t.irReceiver->read();
+    //DebugPrint("target_num = %d", target_num);
+    if(target_num > 0){
+      t.slideTarget->flash_eye(true);
+      t.slideTarget->set_head_color(_head_color(target_num));
+    }else{
+      t.slideTarget->flash_eye(false);
+      t.slideTarget->set_head_color(HeadColor::clear);
+    }
   }
 }
 
@@ -122,11 +129,18 @@ HeadColor _head_color(byte target_num){
   return HeadColor::clear;
 }
 
-void init_target_val(){
-  std::pair<IrReceiver, SlideTarget> t1
-    = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_1CH), SlideTarget(EYE_LED_PIN_1CH, HEAD_LED_PIN_1CH));
-  std::pair<IrReceiver, SlideTarget> t2
-    = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_2CH), SlideTarget(EYE_LED_PIN_2CH, HEAD_LED_PIN_2CH));
-  targets.push_back(std::move(t1));
-  targets.push_back(std::move(t2));
+void init_target_val(void){
+  DebugPrint("initialize target variable start.");
+  //std::pair<IrReceiver, SlideTarget> t1
+  //  = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_1CH), SlideTarget(EYE_LED_PIN_1CH, HEAD_LED_PIN_1CH));
+  //std::pair<IrReceiver, SlideTarget> t2
+  //  = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_2CH), SlideTarget(EYE_LED_PIN_2CH, HEAD_LED_PIN_2CH));
+  //DebugPrint("target push_back");
+  //targets.push_back(std::move(t1));
+  //targets.push_back(std::move(t2));
+  targets[0].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_1CH));
+  targets[0].slideTarget.reset(new SlideTarget(EYE_LED_PIN_1CH, HEAD_LED_PIN_1CH));
+  targets[1].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_2CH));
+  targets[1].slideTarget.reset(new SlideTarget(EYE_LED_PIN_2CH));
+  DebugPrint("initialize target variable end.");
 }

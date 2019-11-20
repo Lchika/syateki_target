@@ -16,6 +16,9 @@ void SlideTarget::blink_eye(uint32_t time, uint32_t count) const {
 }
 
 void SlideTarget::set_head_color(HeadColor color) const {
+  if(_head == NULL){
+    return;
+  }
   if(color == clear){
     _head->ClearTo(black);
   }else{
