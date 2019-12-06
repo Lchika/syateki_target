@@ -18,7 +18,9 @@ private:
   uint8_t _i2c_address = 8;    //  赤外線受信モジュールのI2Cスレーブアドレス
 
 public:
-  IrReceiver(uint8_t i2c_address):_i2c_address(i2c_address){};
+  IrReceiver(){}
+  IrReceiver(uint8_t i2c_address):_i2c_address(i2c_address){}
+  ~IrReceiver(){}
   byte read() const;
 };
 
