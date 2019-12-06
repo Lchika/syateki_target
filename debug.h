@@ -11,12 +11,10 @@
 
 #ifdef DEBUG
     #define BeginDebugPrint()    Serial.begin( 115200 )
-    #define DebugPrint( ... )\
+    #define DebugPrint( msg )\
         {\
             char __buff__[ 256 ];\
-            sprintf( __buff__\
-                   , __VA_ARGS__ );\
-            Serial.print( __buff__ );\
+            Serial.print( msg );\
             sprintf( __buff__\
                    , " (Func:%s)"\
                    ,__func__ );\
