@@ -13,10 +13,10 @@
 #include "ILI9341Logger.hpp"
 
 static constexpr uint8_t EYE_LED_PIN_1CH = 27;
-static constexpr uint8_t HEAD_LED_PIN_1CH = 26;
+//static constexpr uint8_t HEAD_LED_PIN_1CH = 26;
 static constexpr int ADDRESS_IR_RECV_MOD_1CH = 8;
 static constexpr uint8_t EYE_LED_PIN_2CH = 25;
-static constexpr uint8_t HEAD_LED_PIN_2CH = 23;
+//static constexpr uint8_t HEAD_LED_PIN_2CH = 23;
 static constexpr int ADDRESS_IR_RECV_MOD_2CH = 9;
 static constexpr uint8_t TFT_DC_PIN = 17;
 static constexpr uint8_t TFT_CS_PIN = 15;
@@ -43,6 +43,9 @@ void setup(){
   BeginDebugPrint();
 
   tft_logger.reset(new ILI9341Logger(&hspi, TFT_DC_PIN, TFT_CS_PIN, TFT_RST_PIN));
+  
+  Wire.begin();
+  info("Wire begun");
 
   init_target_val();
 
@@ -75,7 +78,6 @@ void setup(){
   //server = new SimpleWebServer("target", "12345678", IPAddress(192,168,100,116), IPAddress(255,255,255,0), 80);
   //server = new SimpleWebServer("target", "12345678", WiFi.localIP(), IPAddress(255,255,255,0), 80);
   info("set_server end");
-  Wire.begin();
   info("setup end");
 }
 
@@ -131,7 +133,8 @@ HeadColor _head_color(byte target_num){
   std::map<byte, HeadColor> dict{
     {1, HeadColor::red},
     {2, HeadColor::green},
-    {3, HeadColor::blue}
+    {3, HeadColor::blue},
+    {4, HeadColor::green}
   };
   try{
     return dict.at(target_num);
@@ -151,9 +154,9 @@ void init_target_val(void){
   //targets.push_back(std::move(t1));
   //targets.push_back(std::move(t2));
   targets[0].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_1CH));
-  targets[0].slideTarget.reset(new SlideTarget(EYE_LED_PIN_1CH, HEAD_LED_PIN_1CH));
+  targets[0].slideTarget.reset(new SlideTarget(EYE_LED_PIN_1CH, 0, false));
   targets[1].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_2CH));
-  targets[1].slideTarget.reset(new SlideTarget(EYE_LED_PIN_2CH));
+  targets[1].slideTarget.reset(new SlideTarget(EYE_LED_PIN_2CH, 1, false));
   info("initialize target variable end.");
 }
 

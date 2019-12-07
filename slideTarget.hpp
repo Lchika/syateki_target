@@ -9,8 +9,8 @@
 #include <memory>
 #include <array>
 #include <Arduino.h>
-#include <NeoPixelBus.h>
 #include "led.hpp"
+#include "ht16k33LED.hpp"
 
 /**
  * @class SlideTarget
@@ -26,20 +26,22 @@ enum HeadColor{
 
 class SlideTarget {
 private:
+  uint8_t _target_id = 0;
   std::unique_ptr<Led> _eye;
-  std::unique_ptr<NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod>> _head;
+  std::unique_ptr<Ht16k33led> _head;
   std::array<uint8_t, 3> color_array(HeadColor color) const;
 
 public:
   SlideTarget(){}
   SlideTarget(uint8_t pin_eye_led)
     :_eye(new Led(pin_eye_led)){}
-  SlideTarget(uint8_t pin_eye_led, uint8_t pin_head_led)
+  //! target_idは0始まりで指定する
+  SlideTarget(uint8_t pin_eye_led, uint8_t target_id, bool do_wire_begin = true)
     :_eye(new Led(pin_eye_led))
-    ,_head(new NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod>(1, pin_head_led))
+    ,_head(new Ht16k33led(0x70, target_id, do_wire_begin))
   {
-    _head->Begin();
-    _head->Show();
+    _head->init();
+    _head->clear();
   }
   ~SlideTarget(){}
   void flash_eye(bool is_on) const;
