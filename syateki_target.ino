@@ -21,6 +21,7 @@ static constexpr int ADDRESS_IR_RECV_MOD_2CH = 9;
 static constexpr uint8_t TFT_DC_PIN = 17;
 static constexpr uint8_t TFT_CS_PIN = 15;
 static constexpr uint8_t TFT_RST_PIN = 16;
+static constexpr uint8_t TARGET_NUM = 2;
 
 struct Target{
   std::unique_ptr<IrReceiver> irReceiver;
@@ -33,7 +34,7 @@ IPAddress subnet(255, 255, 255, 0);      //
 //SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
 std::unique_ptr<SimpleWebServer> server;
 //std::vector<Target> targets;
-Target targets[2];
+Target targets[TARGET_NUM];
 //IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
 //SlideTarget _target(EYE_LED_PIN, HEAD_LED_PIN);
 SPIClass hspi(HSPI);
@@ -89,15 +90,27 @@ void loop(){
 
 void handle_root(){
   info("-- GET /");
-  byte target_num = targets[0].irReceiver->read();
-  //byte target_num = 0;
-  info("target_num = " + String(target_num));
-  String return_html = "target=" + String(target_num);
-  server->send_html(200, return_html);
-  if(target_num == 1){
-    blink_led(EYE_LED_PIN_1CH, 100, 3);
+  byte response_num = 0;
+  for(int target_id = 0; target_id< TARGET_NUM; target_id++){
+    byte gun_num = check_and_handle_hit(target_id);
+    if(gun_num != 0){
+      response_num = gun_num;
+    }
   }
+  String return_html = "target=" + String(response_num);
+  server->send_html(200, return_html);
   return;
+}
+
+byte check_and_handle_hit(unsigned int target_id){
+  byte gun_num = targets[target_id].irReceiver->read();
+  info("gun_num = " + String(gun_num));
+  //String return_html = "target=" + String(gun_num);
+  //server->send_html(200, return_html);
+  if(gun_num > 0){
+    targets[target_id].slideTarget->blink_eye(100, 3);
+  }
+  return gun_num;
 }
 
 void set_server(){
@@ -105,6 +118,7 @@ void set_server(){
   server->begin();
 }
 
+/*
 void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
   for(int i = 0; i < blink_count; i++){
     digitalWrite(pin, HIGH);
@@ -114,6 +128,7 @@ void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
     delay(blink_time);
   }
 }
+*/
 
 void guide_recv_status(){
   for(const auto& t : targets){
