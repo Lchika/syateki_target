@@ -18,10 +18,12 @@ static constexpr int ADDRESS_IR_RECV_MOD_1CH = 8;
 static constexpr uint8_t EYE_LED_PIN_2CH = 25;
 //static constexpr uint8_t HEAD_LED_PIN_2CH = 23;
 static constexpr int ADDRESS_IR_RECV_MOD_2CH = 9;
+static constexpr uint8_t EYE_LED_PIN_3CH = 19;
+static constexpr int ADDRESS_IR_RECV_MOD_3CH = 10;
 static constexpr uint8_t TFT_DC_PIN = 17;
 static constexpr uint8_t TFT_CS_PIN = 15;
 static constexpr uint8_t TFT_RST_PIN = 16;
-static constexpr uint8_t TARGET_NUM = 2;
+static constexpr uint8_t TARGET_NUM = 3;
 
 struct Target{
   std::unique_ptr<IrReceiver> irReceiver;
@@ -60,7 +62,7 @@ void setup(){
   if (!WiFi.config(ip, gateway, subnet)) {
     info("STA Failed to configure");
   }
-  WiFi.begin("ROBOCON-AP1", "20190216-rc");
+  WiFi.begin("your-ssid", "your-password");
   unsigned int try_connect_count = 0;
   while(WiFi.status() != WL_CONNECTED){
     try_connect_count++;
@@ -91,7 +93,7 @@ void loop(){
 void handle_root(){
   info("-- GET /");
   byte response_num = 0;
-  for(int target_id = 0; target_id< TARGET_NUM; target_id++){
+  for(int target_id = 0; target_id < TARGET_NUM; target_id++){
     byte gun_num = check_and_handle_hit(target_id);
     if(gun_num != 0){
       response_num = gun_num;
@@ -147,8 +149,8 @@ void guide_recv_status(){
 HeadColor _head_color(byte target_num){
   std::map<byte, HeadColor> dict{
     {1, HeadColor::red},
-    {2, HeadColor::green},
-    {3, HeadColor::blue},
+    //{2, HeadColor::blue},
+    //{3, HeadColor::blue},
     {4, HeadColor::green}
   };
   try{
@@ -172,6 +174,8 @@ void init_target_val(void){
   targets[0].slideTarget.reset(new SlideTarget(EYE_LED_PIN_1CH, 0, false));
   targets[1].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_2CH));
   targets[1].slideTarget.reset(new SlideTarget(EYE_LED_PIN_2CH, 1, false));
+  targets[2].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_3CH));
+  targets[2].slideTarget.reset(new SlideTarget(EYE_LED_PIN_3CH, 2, false));
   info("initialize target variable end.");
 }
 

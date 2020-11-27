@@ -40,7 +40,7 @@ void Ht16k33led::init(){
 }
 
 void Ht16k33led::write_rgb(uint8_t r, uint8_t g, uint8_t b){
-  uint16_t row = 0x0000 | (r << (_id * 3)) | (g << (_id * 3 + 1)) | (b << (_id * 3 + 2));
+  uint16_t row = 0x0000 | (r << (_id * 3)) | (b << (_id * 3 + 1)) | (g << (_id * 3 + 2));
   Wire.beginTransmission(_address);
   Wire.write(_id * 2);
   Wire.write(static_cast<uint8_t>(row & 0x00FF));
