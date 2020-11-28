@@ -2,10 +2,12 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <map>
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
-#include "SimpleWebServer.h"
+//#include "SimpleWebServer.h"
+#include "TargetServer.hpp"
 #include "debug.h"
 #include "irReceiver.hpp"
 #include "slideTarget.hpp"
@@ -34,7 +36,8 @@ IPAddress ip(192, 168, 100, 200);        // for fixed IP Address
 IPAddress gateway(192, 168, 100, 1);     //
 IPAddress subnet(255, 255, 255, 0);      //
 //SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
-std::unique_ptr<SimpleWebServer> server;
+//std::unique_ptr<SimpleWebServer> server;
+std::unique_ptr<TargetServer> server;
 //std::vector<Target> targets;
 Target targets[TARGET_NUM];
 //IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
@@ -54,7 +57,6 @@ void setup(){
 
   RotaryDipSwitch rotaryDipSwitch({34, 36, 39, 35});
   const IPAddress ip(192, 168, 100, 200 + rotaryDipSwitch.read());
-  server.reset(new SimpleWebServer(ip, IPAddress(255, 255, 255, 0), 80));
 
   WiFi.mode(WIFI_AP_STA);
   set_server();
@@ -62,7 +64,7 @@ void setup(){
   if (!WiFi.config(ip, gateway, subnet)) {
     info("STA Failed to configure");
   }
-  WiFi.begin("your-ssid", "your-password");
+  WiFi.begin("ROBOCON-AP1", "20190216-rc");
   unsigned int try_connect_count = 0;
   while(WiFi.status() != WL_CONNECTED){
     try_connect_count++;
@@ -85,52 +87,57 @@ void setup(){
 }
 
 void loop(){
-  server->handle_request();
+  server->handle_client();
   guide_recv_status();
   delay(100);
 }
 
-void handle_root(){
+void handle_root(WebServer *server){
   info("-- GET /");
-  byte response_num = 0;
+
+  String shoot_gun_num_s = server->arg("gun_num");
+  DebugPrint("gun_num: " + String(shoot_gun_num_s));
+  if(shoot_gun_num_s == ""){
+    response_to_center(*server, shoot_gun_num_s, 0);
+    return;
+  }
+
+  int shoot_gun_num_i = shoot_gun_num_s.toInt();
   for(int target_id = 0; target_id < TARGET_NUM; target_id++){
-    byte gun_num = check_and_handle_hit(target_id);
-    if(gun_num != 0){
-      response_num = gun_num;
+    if(check_and_handle_hit(target_id, shoot_gun_num_i)){
+      response_to_center(*server, shoot_gun_num_s, shoot_gun_num_i);
+      return;
     }
   }
-  String return_html = "target=" + String(response_num);
-  server->send_html(200, return_html);
+  response_to_center(*server, shoot_gun_num_s, 0);
   return;
 }
 
-byte check_and_handle_hit(unsigned int target_id){
+static void response_to_center(WebServer &server, String gun_num_s, int response_num) {
+  server.send(200, "text/plain", "target=" + String(response_num));
+  if(gun_num_s == ""){
+    gun_num_s = " ";
+  }
+  info("FROM: " + gun_num_s + ", RETURN: " + String(response_num));
+}
+
+bool check_and_handle_hit(unsigned int target_id, int shoot_gun_num_i){
   byte gun_num = targets[target_id].irReceiver->read();
   info("gun_num = " + String(gun_num));
   //String return_html = "target=" + String(gun_num);
   //server->send_html(200, return_html);
-  if(gun_num > 0){
+  if(gun_num == shoot_gun_num_i){
     targets[target_id].slideTarget->blink_eye(100, 3);
+    return true;
   }
-  return gun_num;
+  return false;
 }
 
 void set_server(){
-  server->add_handler("/", handle_root);
+  server.reset(new TargetServer());
+  server->on_shoot(handle_root);
   server->begin();
 }
-
-/*
-void blink_led(uint8_t pin, uint32_t blink_time, uint32_t blink_count){
-  for(int i = 0; i < blink_count; i++){
-    digitalWrite(pin, HIGH);
-    delay(blink_time);
-
-    digitalWrite(pin, LOW);
-    delay(blink_time);
-  }
-}
-*/
 
 void guide_recv_status(){
   for(const auto& t : targets){
