@@ -27,29 +27,32 @@ static constexpr uint8_t TFT_CS_PIN = 15;
 static constexpr uint8_t TFT_RST_PIN = 16;
 static constexpr uint8_t TARGET_NUM = 3;
 
-struct Target{
+struct Target
+{
   std::unique_ptr<IrReceiver> irReceiver;
   std::unique_ptr<SlideTarget> slideTarget;
+  bool is_alive = true;
 };
 
-IPAddress ip(192, 168, 100, 200);        // for fixed IP Address
-IPAddress gateway(192, 168, 100, 1);     //
-IPAddress subnet(255, 255, 255, 0);      //
+IPAddress ip(192, 168, 100, 200);    // for fixed IP Address
+IPAddress gateway(192, 168, 100, 1); //
+IPAddress subnet(255, 255, 255, 0);  //
 //SimpleWebServer server("target", "12345678", ip, IPAddress(255,255,255,0), 80);
 //std::unique_ptr<SimpleWebServer> server;
 std::unique_ptr<TargetServer> server;
 //std::vector<Target> targets;
-Target targets[TARGET_NUM];
+Target targets[TARGET_NUM]{};
 //IrReceiver _irReceiver(ADDRESS_IR_RECV_MOD);
 //SlideTarget _target(EYE_LED_PIN, HEAD_LED_PIN);
 SPIClass hspi(HSPI);
 std::unique_ptr<ILI9341Logger> tft_logger;
 
-void setup(){
+void setup()
+{
   BeginDebugPrint();
 
   tft_logger.reset(new ILI9341Logger(&hspi, TFT_DC_PIN, TFT_CS_PIN, TFT_RST_PIN));
-  
+
   Wire.begin();
   info("Wire begun");
 
@@ -60,24 +63,30 @@ void setup(){
 
   WiFi.mode(WIFI_AP_STA);
   set_server();
-  
-  if (!WiFi.config(ip, gateway, subnet)) {
+
+  if (!WiFi.config(ip, gateway, subnet))
+  {
     info("STA Failed to configure");
   }
-  WiFi.begin("ROBOCON-AP1", "20190216-rc");
+  WiFi.begin("your-ssid", "your-password");
   unsigned int try_connect_count = 0;
-  while(WiFi.status() != WL_CONNECTED){
+  while (WiFi.status() != WL_CONNECTED)
+  {
     try_connect_count++;
-    if(try_connect_count > 20) break;
+    if (try_connect_count > 20)
+      break;
     delay(500);
     info(".");
   }
-  if (WiFi.status() == WL_CONNECTED) {  
+  if (WiFi.status() == WL_CONNECTED)
+  {
     info("");
     info("WiFi connected.");
     info("IP address: ");
     info(WiFi.localIP().toString().c_str());
-  } else {
+  }
+  else
+  {
     info("WiFi connect process time out.");
   }
   //server = new SimpleWebServer("target", "12345678", IPAddress(192,168,100,116), IPAddress(255,255,255,0), 80);
@@ -86,26 +95,37 @@ void setup(){
   info("setup end");
 }
 
-void loop(){
+void loop()
+{
   server->handle_client();
   guide_recv_status();
   delay(100);
 }
 
-void handle_root(WebServer *server){
+void handle_root(WebServer *server)
+{
   info("-- GET /");
 
   String shoot_gun_num_s = server->arg("gun_num");
   DebugPrint("gun_num: " + String(shoot_gun_num_s));
-  if(shoot_gun_num_s == ""){
+  if (shoot_gun_num_s == "")
+  {
     response_to_center(*server, shoot_gun_num_s, 0);
     return;
   }
 
   int shoot_gun_num_i = shoot_gun_num_s.toInt();
-  for(int target_id = 0; target_id < TARGET_NUM; target_id++){
-    if(check_and_handle_hit(target_id, shoot_gun_num_i)){
+  for (int target_id = 0; target_id < TARGET_NUM; target_id++)
+  {
+    if (!targets[target_id].is_alive)
+      continue;
+    if (is_hit(target_id, shoot_gun_num_i))
+    {
       response_to_center(*server, shoot_gun_num_s, shoot_gun_num_i);
+      targets[target_id].is_alive = false;
+      targets[target_id].slideTarget->blink_eye(100, 3);
+      targets[target_id].slideTarget->flash_eye(true);
+      targets[target_id].slideTarget->set_head_color(_head_color(shoot_gun_num_i));
       return;
     }
   }
@@ -113,70 +133,89 @@ void handle_root(WebServer *server){
   return;
 }
 
-static void response_to_center(WebServer &server, String gun_num_s, int response_num) {
+void handle_init(WebServer *server)
+{
+  info("-- GET /init");
+  for (auto &t : targets)
+  {
+    t.slideTarget->flash_eye(false);
+    t.slideTarget->set_head_color(HeadColor::clear);
+    t.is_alive = true;
+  }
+  server->send(200, "text/plain", "initialized");
+}
+
+static void response_to_center(WebServer &server, String gun_num_s, int response_num)
+{
   server.send(200, "text/plain", "target=" + String(response_num));
-  if(gun_num_s == ""){
+  if (gun_num_s == "")
+  {
     gun_num_s = " ";
   }
   info("FROM: " + gun_num_s + ", RETURN: " + String(response_num));
 }
 
-bool check_and_handle_hit(unsigned int target_id, int shoot_gun_num_i){
+bool is_hit(unsigned int target_id, int shoot_gun_num_i)
+{
   byte gun_num = targets[target_id].irReceiver->read();
   info("gun_num = " + String(gun_num));
-  //String return_html = "target=" + String(gun_num);
-  //server->send_html(200, return_html);
-  if(gun_num == shoot_gun_num_i){
-    targets[target_id].slideTarget->blink_eye(100, 3);
+  if (gun_num == shoot_gun_num_i)
+  {
     return true;
   }
   return false;
 }
 
-void set_server(){
+void set_server()
+{
   server.reset(new TargetServer());
   server->on_shoot(handle_root);
+  server->on_init(handle_init);
   server->begin();
 }
 
-void guide_recv_status(){
-  for(const auto& t : targets){
+void guide_recv_status()
+{
+  for (const auto &t : targets)
+  {
+    if (!t.is_alive)
+      continue;
     byte target_num = t.irReceiver->read();
     //info("target_num = %d", target_num);
-    if(target_num > 0){
+    if (target_num > 0)
+    {
       t.slideTarget->flash_eye(true);
       t.slideTarget->set_head_color(_head_color(target_num));
-    }else{
+    }
+    else
+    {
       t.slideTarget->flash_eye(false);
       t.slideTarget->set_head_color(HeadColor::clear);
     }
   }
 }
 
-HeadColor _head_color(byte target_num){
+HeadColor _head_color(byte target_num)
+{
   std::map<byte, HeadColor> dict{
-    {1, HeadColor::red},
-    //{2, HeadColor::blue},
-    //{3, HeadColor::blue},
-    {4, HeadColor::green}
-  };
-  try{
+      {1, HeadColor::red},
+      //{2, HeadColor::blue},
+      //{3, HeadColor::blue},
+      {4, HeadColor::green}};
+  try
+  {
     return dict.at(target_num);
-  }catch(std::out_of_range&){
+  }
+  catch (std::out_of_range &)
+  {
     info("<exception> std::out_of_range: input = " + String(target_num));
   }
   return HeadColor::clear;
 }
 
-void init_target_val(void){
+void init_target_val(void)
+{
   info("initialize target variable start.");
-  //std::pair<IrReceiver, SlideTarget> t1
-  //  = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_1CH), SlideTarget(EYE_LED_PIN_1CH, HEAD_LED_PIN_1CH));
-  //std::pair<IrReceiver, SlideTarget> t2
-  //  = std::make_pair(IrReceiver(ADDRESS_IR_RECV_MOD_2CH), SlideTarget(EYE_LED_PIN_2CH, HEAD_LED_PIN_2CH));
-  //info("target push_back");
-  //targets.push_back(std::move(t1));
-  //targets.push_back(std::move(t2));
   targets[0].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_1CH));
   targets[0].slideTarget.reset(new SlideTarget(EYE_LED_PIN_1CH, 0, false));
   targets[1].irReceiver.reset(new IrReceiver(ADDRESS_IR_RECV_MOD_2CH));
@@ -186,12 +225,14 @@ void init_target_val(void){
   info("initialize target variable end.");
 }
 
-void info(const String& msg){
+void info(const String &msg)
+{
   DebugPrint(msg);
   tft_logger->info(msg);
 }
 
-void error(const String& msg){
+void error(const String &msg)
+{
   DebugPrint(msg);
   tft_logger->error(msg);
 }
